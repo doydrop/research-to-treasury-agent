@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import express, { type Express } from "express";
-import { createPublicClient, createWalletClient, http, type Address } from "viem";
+import { createPublicClient, createWalletClient, http, publicActions, type Address } from "viem";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { loadConfig, type AppConfig } from "./config.js";
@@ -49,7 +49,13 @@ export function buildExecutor(config: AppConfig, priceProvider: PriceProvider): 
   const account = privateKeyToAccount(key);
   const transport = http(config.rpcUrl);
   const publicClient = createPublicClient({ chain: baseSepolia, transport }) as never;
-  const walletClient = createWalletClient({ account, chain: baseSepolia, transport }) as never;
+  // The executors wait for receipts on the wallet client — a bare viem
+  // wallet client has no waitForTransactionReceipt (that is a public
+  // action), so extend it. Without this, the first real sweep crashes
+  // with "waitForTransactionReceipt is not a function" (hit 19 Nov 2026).
+  const walletClient = createWalletClient({ account, chain: baseSepolia, transport }).extend(
+    publicActions,
+  ) as never;
   if (config.swapExecutor === "direct") {
     return new DirectSwapExecutor({
       usdc: config.usdcAddress as Address,
