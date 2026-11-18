@@ -94,6 +94,25 @@ live on-chain — that is why `SWAP_EXECUTOR=direct` (QuoterV2 +
 SwapRouter02 `exactInputSingle`) exists and is the recommended real-swap
 mode on testnet. It approves the router itself (not Permit2) for exactly
 the swap amount, with a 5% slippage tolerance for the tiny seeded pool.
+Verified live: 1 USDC → 0.00354 AAPLc, both from the VM and from POCONG's laptop.
+
+## End-to-end test (paid report -> automatic sweep)
+
+Terminal 1 — start the server with reserve 0 so the $0.05 sale sweeps:
+
+```bash
+SWAP_EXECUTOR=direct SWEEP_RESERVE_USDC=0 pnpm dev
+```
+
+Terminal 2 — buy one report with the test wallet (pays $0.05 USDC on
+Base Sepolia, then the sweep swaps it into the treasury token):
+
+```bash
+pnpm tsx scripts/test-e2e.ts AAPLc
+```
+
+It prints the report and the treasury snapshot (holdings should show
+~0.00018 AAPLc after the sweep).
 
 What is still mocked or next:
 
