@@ -11,8 +11,8 @@ export interface AppConfig {
   sweepReserveUsdc: number;
   /** "mock" (fixed example prices) or "chainlink" (live Base mainnet feeds). */
   priceSource: "mock" | "chainlink";
-  /** "mock" (demo swaps) or "uniswap" (real Sepolia swaps via the Trading API). */
-  swapExecutor: "mock" | "uniswap";
+  /** "mock" (demo swaps), "uniswap" (real Sepolia swaps via the Trading API), or "direct" (real Sepolia swaps via QuoterV2 + SwapRouter02, no API key). */
+  swapExecutor: "mock" | "uniswap" | "direct";
   uniswapApiKey: string;
   /** Sepolia test-wallet private key. Never logged, never committed. */
   testPrivateKey: string;
@@ -48,7 +48,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     treasuryToken: env.TREASURY_TOKEN ?? "AAPLc",
     sweepReserveUsdc: envFloat("SWEEP_RESERVE_USDC", 0.5),
     priceSource: env.PRICE_SOURCE === "chainlink" ? "chainlink" : "mock",
-    swapExecutor: env.SWAP_EXECUTOR === "uniswap" ? "uniswap" : "mock",
+    swapExecutor:
+      env.SWAP_EXECUTOR === "uniswap" ? "uniswap" : env.SWAP_EXECUTOR === "direct" ? "direct" : "mock",
     uniswapApiKey: env.UNISWAP_API_KEY ?? "",
     testPrivateKey: env.TEST_PRIVATE_KEY ?? "",
     usdcAddress: env.USDC_ADDRESS ?? SEPOLIA_ADDRESSES.faucetUsdc,

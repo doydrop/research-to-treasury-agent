@@ -10,7 +10,7 @@ import { CHAINLINK_FEEDS } from "./feeds.js";
 import { ChainlinkPriceProvider, MockPriceProvider, type PriceProvider } from "./prices.js";
 import { generateReport } from "./research.js";
 import { MockSwapExecutor, Treasury, type SwapExecutor } from "./treasury.js";
-import { UniswapApiExecutor } from "./swap.js";
+import { UniswapApiExecutor, DirectSwapExecutor } from "./swap.js";
 import { buildPaywall, type PayToAddress } from "./x402.js";
 
 export interface AppDeps {
@@ -37,27 +37,38 @@ function loadDeployments(): Record<string, Address> {
   return Object.fromEntries(Object.entries(raw).map(([symbol, v]) => [symbol, v.address as Address]));
 }
 
-/** Builds the sweep executor from config. Uniswap mode needs a real API key + test wallet. */
+/** Builds the sweep executor from config. Direct mode needs only a test wallet; uniswap mode also needs an API key. */
 export function buildExecutor(config: AppConfig, priceProvider: PriceProvider): SwapExecutor {
-  if (config.swapExecutor !== "uniswap") return new MockExecutorWithPrices(priceProvider);
-  if (!config.uniswapApiKey) {
-    throw new Error("UNISWAP_API_KEY is required when SWAP_EXECUTOR=uniswap");
-  }
+  if (config.swapExecutor === "mock") return new MockExecutorWithPrices(priceProvider);
   if (!config.testPrivateKey) {
-    throw new Error("TEST_PRIVATE_KEY is required when SWAP_EXECUTOR=uniswap");
+    throw new Error("TEST_PRIVATE_KEY is required when SWAP_EXECUTOR=uniswap or direct");
   }
   // MetaMask shows the key without the 0x prefix — accept both forms.
   const rawKey = config.testPrivateKey.trim();
   const key = (rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`) as `0x${string}`;
   const account = privateKeyToAccount(key);
   const transport = http(config.rpcUrl);
+  const publicClient = createPublicClient({ chain: baseSepolia, transport }) as never;
+  const walletClient = createWalletClient({ account, chain: baseSepolia, transport }) as never;
+  if (config.swapExecutor === "direct") {
+    return new DirectSwapExecutor({
+      usdc: config.usdcAddress as Address,
+      tokens: loadDeployments(),
+      swapper: account.address,
+      publicClient,
+      walletClient,
+    });
+  }
+  if (!config.uniswapApiKey) {
+    throw new Error("UNISWAP_API_KEY is required when SWAP_EXECUTOR=uniswap");
+  }
   return new UniswapApiExecutor({
     apiKey: config.uniswapApiKey,
     usdc: config.usdcAddress as Address,
     tokens: loadDeployments(),
     swapper: account.address,
-    publicClient: createPublicClient({ chain: baseSepolia, transport }) as never,
-    walletClient: createWalletClient({ account, chain: baseSepolia, transport }) as never,
+    publicClient,
+    walletClient,
   });
 }
 

@@ -45,4 +45,7 @@ export const AERODROME_SEPOLIA_AVAILABLE = false;
 export const SEPOLIA_V3 = {
   factory: "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24" as Address,
   positionManager: "0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2" as Address,
+  /** QuoterV2 (official Uniswap docs) and SwapRouter02 (two independent sources), both code-verified on-chain. */
+  quoterV2: "0xC5290058841028F1614F3A6F0F5816cAd0df5E27" as Address,
+  swapRouter02: "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4" as Address,
 } as const;

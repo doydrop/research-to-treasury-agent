@@ -1,37 +1,36 @@
 /**
- * Quote-only test of the Uniswap executor on Base Sepolia.
- * Fetches a real Trading API quote for USDC -> mock-B20. No signing,
- * no funds move. Needs a seeded pool or the API answers "No quotes available".
+ * Quote-only test of the swap executor on Base Sepolia.
+ * Fetches a real quote for USDC -> mock-B20 against the seeded pool.
+ * No signing, no funds move. Needs a seeded pool or the quote fails.
  *
  * Usage:
  *   pnpm tsx scripts/test-quote.ts [AAPLc] [--amount 1]
  *
- * Env: UNISWAP_API_KEY (from the Uniswap docs portal), plus either
- * PAY_TO_ADDRESS or TEST_PRIVATE_KEY (to derive the swapper address).
+ * Executor: SWAP_EXECUTOR=direct (default — QuoterV2 on-chain, no API key)
+ * or SWAP_EXECUTOR=uniswap (Trading API, needs UNISWAP_API_KEY).
+ * Needs PAY_TO_ADDRESS or TEST_PRIVATE_KEY (to derive the swapper address).
  */
 import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Address } from "viem";
+import { createPublicClient, http, type Address } from "viem";
+import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { UniswapApiExecutor } from "../src/swap.js";
+import { UniswapApiExecutor, DirectSwapExecutor } from "../src/swap.js";
 import { SEPOLIA_ADDRESSES } from "../src/feeds.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DEPLOYMENTS_PATH = join(ROOT, "deployments", "base-sepolia.json");
+const RPC_URL = process.env.RPC_URL ?? "https://sepolia.base.org";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const symbol = args.find((a) => !a.startsWith("--")) ?? "AAPLc";
   const amountFlag = args.indexOf("--amount");
   const amountUsdc = Number(amountFlag >= 0 ? args[amountFlag + 1] : "1");
+  const mode = process.env.SWAP_EXECUTOR === "uniswap" ? "uniswap" : "direct";
 
-  const apiKey = process.env.UNISWAP_API_KEY;
-  if (!apiKey) {
-    console.error("UNISWAP_API_KEY is required (free key from the Uniswap docs portal).");
-    process.exit(1);
-  }
   let swapper = process.env.PAY_TO_ADDRESS as Address | undefined;
   if (!swapper && process.env.TEST_PRIVATE_KEY) {
     const rawKey = process.env.TEST_PRIVATE_KEY.trim();
@@ -60,21 +59,30 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const executor = new UniswapApiExecutor({
-    apiKey,
-    usdc: SEPOLIA_ADDRESSES.faucetUsdc,
-    tokens,
-    swapper,
-  });
+  const executor =
+    mode === "uniswap"
+      ? new UniswapApiExecutor({
+          apiKey: process.env.UNISWAP_API_KEY ?? "",
+          usdc: SEPOLIA_ADDRESSES.faucetUsdc,
+          tokens,
+          swapper,
+        })
+      : new DirectSwapExecutor({
+          usdc: SEPOLIA_ADDRESSES.faucetUsdc,
+          tokens,
+          swapper,
+          publicClient: createPublicClient({ chain: baseSepolia, transport: http(RPC_URL) }) as never,
+        });
   const quote = await executor.quote({ to: symbol, amountUsdc });
   const decimals = 18;
   console.log(
     JSON.stringify(
       {
+        executor: mode,
         symbol,
         amountUsdc,
         amountOut: (Number(quote.amountOut) / 10 ** decimals).toString(),
-        router: quote.swapTransaction?.to ?? "(no swapTransaction in quote)",
+        router: quote.swapTransaction?.to ?? "(direct executor: router called on swap, not in quote)",
         hasSwapTransaction: Boolean(quote.swapTransaction),
       },
       null,

@@ -80,11 +80,20 @@ pnpm tsx scripts/seed-pool.ts NVDAc --usdc 5 --price 195.25
 ```
 
 The pool address + position NFT id are recorded under `pools` in
-`deployments/base-sepolia.json`. Test the quote without signing anything:
+`deployments/base-sepolia.json`. Test the quote without signing anything
+(direct executor is the default — it reads QuoterV2 on-chain, no API key):
 
 ```bash
-pnpm tsx scripts/test-quote.ts AAPLc --amount 1   # needs UNISWAP_API_KEY
+pnpm tsx scripts/test-quote.ts AAPLc --amount 1
+# or, explicitly: SWAP_EXECUTOR=uniswap pnpm tsx scripts/test-quote.ts AAPLc --amount 1
 ```
+
+Note: the Trading API `/v1/quote` timed out twice on Sepolia
+(`UpstreamTimeoutError`, 19 Nov 2026) while the pool itself was verified
+live on-chain — that is why `SWAP_EXECUTOR=direct` (QuoterV2 +
+SwapRouter02 `exactInputSingle`) exists and is the recommended real-swap
+mode on testnet. It approves the router itself (not Permit2) for exactly
+the swap amount, with a 5% slippage tolerance for the tiny seeded pool.
 
 What is still mocked or next:
 
