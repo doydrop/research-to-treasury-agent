@@ -13,5 +13,22 @@
     "address": "0x3fd65834dbf11aee8999652ac6c06404bae6092a",
     "txHash": "0xc059307545ccf08f78db1910593e93ec9d9aad52e009f14e0c313a4cd794b780",
     "deployedAt": "2026-11-18T16:43:33.554Z"
+  },
+  "pools": {
+    "AAPLc": {
+      "pool": "0xEa6f1B3deCe546feCE9e49F547D7E93665dDc01A",
+      "fee": 3000,
+      "tokenId": "85421",
+      "tickLower": 219000,
+      "tickUpper": 220920,
+      "priceUsd": 280.5,
+      "txHash": "0xaa8da04c8a61cd2a891392f63d4f24ed73d0a24ea7b3e333bb39274beb242387",
+      "seededAt": "2026-11-18T17:05:51.179Z"
+    }
+  },
+  "helper": {
+    "address": "0x8896f4292bb12df0e89cd662c33d9fc1644a300d",
+    "txHash": "0xf557c459677711357949b304115820577f209ceb11dd4201e382354e2fa63ded",
+    "deployedAt": "2026-11-18T17:33:33.826Z"
   }
 }
