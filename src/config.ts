@@ -1,3 +1,5 @@
+import { SEPOLIA_ADDRESSES } from "./feeds.js";
+
 export interface AppConfig {
   port: number;
   network: "base-sepolia" | "base";
@@ -6,6 +8,14 @@ export interface AppConfig {
   pricePerReportUsd: string;
   treasuryToken: string;
   sweepReserveUsdc: number;
+  /** "mock" (fixed example prices) or "chainlink" (live Base mainnet feeds). */
+  priceSource: "mock" | "chainlink";
+  /** "mock" (demo swaps) or "uniswap" (real Sepolia swaps via the Trading API). */
+  swapExecutor: "mock" | "uniswap";
+  uniswapApiKey: string;
+  /** Sepolia test-wallet private key. Never logged, never committed. */
+  testPrivateKey: string;
+  usdcAddress: string;
 }
 
 function envInt(name: string, fallback: number): number {
@@ -36,5 +46,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     pricePerReportUsd: env.PRICE_PER_REPORT_USDC ?? "0.05",
     treasuryToken: env.TREASURY_TOKEN ?? "AAPLc",
     sweepReserveUsdc: envFloat("SWEEP_RESERVE_USDC", 0.5),
+    priceSource: env.PRICE_SOURCE === "chainlink" ? "chainlink" : "mock",
+    swapExecutor: env.SWAP_EXECUTOR === "uniswap" ? "uniswap" : "mock",
+    uniswapApiKey: env.UNISWAP_API_KEY ?? "",
+    testPrivateKey: env.TEST_PRIVATE_KEY ?? "",
+    usdcAddress: env.USDC_ADDRESS ?? SEPOLIA_ADDRESSES.faucetUsdc,
   };
 }

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
 import { createApp } from "../src/index";
 import { MockPriceProvider } from "../src/prices";
-import { Treasury } from "../src/treasury";
+import { MockSwapExecutor, Treasury } from "../src/treasury";
 
 describe("server", () => {
   let server: Server;
@@ -18,9 +18,15 @@ describe("server", () => {
         pricePerReportUsd: "0.05",
         treasuryToken: "AAPLc",
         sweepReserveUsdc: 0.5,
+        priceSource: "mock",
+        swapExecutor: "mock",
+        uniswapApiKey: "",
+        testPrivateKey: "",
+        usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       },
       priceProvider: new MockPriceProvider(),
       treasury: new Treasury(),
+      executor: new MockSwapExecutor(280.5),
     });
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => resolve());
