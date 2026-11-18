@@ -11,6 +11,7 @@
  * (1,000,000 tokens each) so it can seed a Uniswap pool for the pair.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import "dotenv/config";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import solc from "solc";

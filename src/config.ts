@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { SEPOLIA_ADDRESSES } from "./feeds.js";
 
 export interface AppConfig {
