@@ -11,8 +11,8 @@ export interface AppConfig {
   sweepReserveUsdc: number;
   /** "mock" (fixed example prices) or "chainlink" (live Base mainnet feeds). */
   priceSource: "mock" | "chainlink";
-  /** "mock" (demo swaps), "uniswap" (real Sepolia swaps via the Trading API), or "direct" (real Sepolia swaps via QuoterV2 + SwapRouter02, no API key). */
-  swapExecutor: "mock" | "uniswap" | "direct";
+  /** "mock" (demo swaps), "uniswap" (real Sepolia swaps via the Trading API), "direct" (real Sepolia swaps via QuoterV2 + SwapRouter02, no API key), or "helper" (real Sepolia swaps via QuoterV2 + the deployed SwapHelper contract — the router reverts on every Sepolia pool, see swap.ts). */
+  swapExecutor: "mock" | "uniswap" | "direct" | "helper";
   uniswapApiKey: string;
   /** Sepolia test-wallet private key. Never logged, never committed. */
   testPrivateKey: string;
@@ -49,7 +49,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     sweepReserveUsdc: envFloat("SWEEP_RESERVE_USDC", 0.5),
     priceSource: env.PRICE_SOURCE === "chainlink" ? "chainlink" : "mock",
     swapExecutor:
-      env.SWAP_EXECUTOR === "uniswap" ? "uniswap" : env.SWAP_EXECUTOR === "direct" ? "direct" : "mock",
+      env.SWAP_EXECUTOR === "uniswap"
+        ? "uniswap"
+        : env.SWAP_EXECUTOR === "direct"
+          ? "direct"
+          : env.SWAP_EXECUTOR === "helper"
+            ? "helper"
+            : "mock",
     uniswapApiKey: env.UNISWAP_API_KEY ?? "",
     testPrivateKey: env.TEST_PRIVATE_KEY ?? "",
     usdcAddress: env.USDC_ADDRESS ?? SEPOLIA_ADDRESSES.faucetUsdc,

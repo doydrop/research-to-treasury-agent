@@ -30,13 +30,23 @@ What works:
   Uniswap quote/approve/swap flow (mocked), the Chainlink feed map, and the
   MockB20 compilation.
 
-Sweeps, two modes (`SWAP_EXECUTOR`):
+Sweeps, three modes (`SWAP_EXECUTOR`):
 
 - `mock` (default): swaps at the quote price, no chain involved.
 - `uniswap`: real swaps on Base Sepolia through the Uniswap Trading API
   (AMM protocols V2/V3/V4 only, so tiny sweeps never need UniswapX signing).
   Needs `UNISWAP_API_KEY` + `TEST_PRIVATE_KEY` + deployed mock B20 tokens
   (see below). The executor approves Permit2 for exactly the swap amount.
+- `direct`: real swaps via QuoterV2 + SwapRouter02 `exactInputSingle`, no API
+  key. **Broken on Base Sepolia as of 19 Nov 2026** — the router reverts on
+  every pool (see below). Kept for reference; do not use on testnet.
+- `helper` (recommended on testnet): real swaps via QuoterV2 + the deployed
+  `SwapHelper` contract (`contracts/SwapHelper.sol`), which calls the pool
+  directly with a known pool address. Needs `TEST_PRIVATE_KEY` + deployed
+  mock B20 tokens + a seeded pool + a deployed helper (see below). The
+  executor approves the helper itself (not Permit2, not the router) for
+  exactly the swap amount, with a 5% slippage tolerance for the tiny
+  seeded pool.
 
 Prices, two modes (`PRICE_SOURCE`):
 
@@ -91,17 +101,29 @@ pnpm tsx scripts/test-quote.ts AAPLc --amount 1
 Note: the Trading API `/v1/quote` timed out twice on Sepolia
 (`UpstreamTimeoutError`, 19 Nov 2026) while the pool itself was verified
 live on-chain — that is why `SWAP_EXECUTOR=direct` (QuoterV2 +
-SwapRouter02 `exactInputSingle`) exists and is the recommended real-swap
-mode on testnet. It approves the router itself (not Permit2) for exactly
-the swap amount, with a 5% slippage tolerance for the tiny seeded pool.
-Verified live: 1 USDC → 0.00354 AAPLc, both from the VM and from POCONG's laptop.
+SwapRouter02 `exactInputSingle`) was built. **But `direct` is broken too**:
+on 19 Nov 2026 the router's `exactInputSingle` reverted on both the seeded
+USDC/AAPLc pool and a liquid WETH/USDC pool, while QuoterV2 quotes fine,
+the USDC allowance is set, the pool is unlocked, and the position is
+in-range — the router listed for Base Sepolia does not work with this
+deployment's pools. That is why `SWAP_EXECUTOR=helper` exists and is the
+recommended real-swap mode on testnet: deploy the helper, then swap through it.
+
+```bash
+pnpm tsx scripts/deploy-swap-helper.ts --dry-run   # compile only
+pnpm tsx scripts/deploy-swap-helper.ts             # deploy (needs TEST_PRIVATE_KEY + faucet ETH)
+```
+
+The helper address lands under `helper` in `deployments/base-sepolia.json`,
+which the server reads. Verified live: 1 USDC → 0.00354 AAPLc (QuoterV2),
+both from the VM and from POCONG's laptop.
 
 ## End-to-end test (paid report -> automatic sweep)
 
 Terminal 1 — start the server with reserve 0 so the $0.05 sale sweeps:
 
 ```bash
-SWAP_EXECUTOR=direct SWEEP_RESERVE_USDC=0 pnpm dev
+SWAP_EXECUTOR=helper SWEEP_RESERVE_USDC=0 pnpm dev
 ```
 
 Terminal 2 — buy one report with the test wallet (pays $0.05 USDC on

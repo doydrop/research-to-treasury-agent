@@ -239,6 +239,148 @@ const ROUTER_ABI = [
   },
 ] as const;
 
+/** Shared on-chain quote (QuoterV2) for the direct and helper executors. */
+async function quoteV3Single(
+  publicClient: DirectExecutorOptions["publicClient"],
+  args: { usdc: Address; tokenOut: Address; amountIn: bigint; fee: number },
+): Promise<bigint> {
+  if (!publicClient) {
+    throw new Error("Public client is not configured — set RPC_URL to quote on-chain");
+  }
+  const res = (await publicClient.readContract({
+    address: SEPOLIA_V3.quoterV2,
+    abi: QUOTER_V2_ABI,
+    functionName: "quoteExactInputSingle",
+    args: [
+      {
+        tokenIn: args.usdc,
+        tokenOut: args.tokenOut,
+        amountIn: args.amountIn,
+        fee: args.fee,
+        sqrtPriceLimitX96: 0n,
+      },
+    ],
+  })) as [bigint, bigint, number, bigint];
+  return res[0];
+}
+
+const HELPER_ABI = [
+  {
+    name: "swapExactInputSingle",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "pool", type: "address" },
+      { name: "tokenIn", type: "address" },
+      { name: "tokenOut", type: "address" },
+      { name: "amountIn", type: "uint256" },
+      { name: "amountOutMinimum", type: "uint256" },
+      { name: "recipient", type: "address" },
+    ],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+] as const;
+
+export interface HelperExecutorOptions extends DirectExecutorOptions {
+  /** Deployed SwapHelper address (deployments/base-sepolia.json `helper`). */
+  helper: Address;
+  /** Seeded V3 pool addresses per symbol (deployments `pools`). */
+  pools: Record<string, Address>;
+}
+
+/**
+ * Executes USDC -> mock B20 sweeps through the deployed SwapHelper contract
+ * (contracts/SwapHelper.sol). Same QuoterV2 quote as the direct executor,
+ * but the swap calls the pool directly with a known pool address instead of
+ * going through SwapRouter02 — the router listed for Base Sepolia reverts
+ * on every pool (verified 19 Nov 2026 on the seeded USDC/AAPLc pool and on
+ * a liquid WETH/USDC pool), while the quoter and position manager work.
+ * The helper pulls USDC via transferFrom, so it (not the router) gets the
+ * approval, exactly the swap amount.
+ */
+export class HelperSwapExecutor implements SwapExecutor {
+  private tokens: Record<string, Address>;
+  private tokenDecimals: Record<string, number>;
+  private fee: number;
+  private slippageBps: number;
+
+  constructor(private opts: HelperExecutorOptions) {
+    this.tokens = opts.tokens;
+    this.tokenDecimals = opts.tokenDecimals ?? {};
+    this.fee = opts.fee ?? 3000;
+    this.slippageBps = opts.slippageBps ?? 500;
+  }
+
+  async quote(args: { to: string; amountUsdc: number }): Promise<UniswapQuote> {
+    const tokenOut = this.tokens[args.to];
+    if (!tokenOut) {
+      throw new Error(
+        `Mock B20 not deployed for ${args.to} — run scripts/deploy-mock-b20.ts first`,
+      );
+    }
+    const amountIn = BigInt(Math.round(args.amountUsdc * 10 ** USDC_DECIMALS));
+    const amountOut = await quoteV3Single(this.opts.publicClient, {
+      usdc: this.opts.usdc,
+      tokenOut,
+      amountIn,
+      fee: this.fee,
+    });
+    return { amountOut, raw: amountOut };
+  }
+
+  async swap(args: { from: "USDC"; to: string; amountUsdc: number }): Promise<SwapResult> {
+    if (!this.opts.walletClient || !this.opts.publicClient) {
+      throw new Error("Wallet client is not configured — set TEST_PRIVATE_KEY to execute swaps");
+    }
+    const tokenOut = this.tokens[args.to];
+    if (!tokenOut) {
+      throw new Error(
+        `Mock B20 not deployed for ${args.to} — run scripts/deploy-mock-b20.ts first`,
+      );
+    }
+    const pool = this.opts.pools[args.to];
+    if (!pool) {
+      throw new Error(
+        `No seeded pool for ${args.to} — run scripts/seed-pool.ts ${args.to} first`,
+      );
+    }
+    const q = await this.quote(args);
+    const amountIn = BigInt(Math.round(args.amountUsdc * 10 ** USDC_DECIMALS));
+    const amountOutMinimum = (q.amountOut * BigInt(10_000 - this.slippageBps)) / 10_000n;
+
+    // The helper pulls USDC via transferFrom — approve it for exactly the swap amount.
+    const allowance = (await this.opts.publicClient.readContract({
+      address: this.opts.usdc,
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [this.opts.swapper, this.opts.helper],
+    })) as bigint;
+    if (allowance < amountIn) {
+      const approveHash = await this.opts.walletClient.sendTransaction({
+        to: this.opts.usdc,
+        data: encodeApprove(this.opts.helper, amountIn),
+        value: 0n,
+      });
+      await this.opts.walletClient.waitForTransactionReceipt({ hash: approveHash });
+    }
+
+    const data = encodeFunctionData({
+      abi: HELPER_ABI,
+      functionName: "swapExactInputSingle",
+      args: [pool, this.opts.usdc, tokenOut, amountIn, amountOutMinimum, this.opts.swapper],
+    });
+    const hash = await this.opts.walletClient.sendTransaction({
+      to: this.opts.helper,
+      data,
+      value: 0n,
+    });
+    const receipt = await this.opts.walletClient.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`Swap transaction reverted: ${hash}`);
+    const decimals = this.tokenDecimals[args.to] ?? 18;
+    return { received: Number(q.amountOut) / 10 ** decimals, txHash: hash };
+  }
+}
+
 export interface DirectExecutorOptions {
   /** USDC token address (Sepolia faucet USDC by default). */
   usdc: Address;
@@ -296,13 +438,13 @@ export class DirectSwapExecutor implements SwapExecutor {
       throw new Error("Public client is not configured — set RPC_URL to quote on-chain");
     }
     const amountIn = BigInt(Math.round(args.amountUsdc * 10 ** USDC_DECIMALS));
-    const res = (await this.opts.publicClient.readContract({
-      address: SEPOLIA_V3.quoterV2,
-      abi: QUOTER_V2_ABI,
-      functionName: "quoteExactInputSingle",
-      args: [{ tokenIn: this.opts.usdc, tokenOut, amountIn, fee: this.fee, sqrtPriceLimitX96: 0n }],
-    })) as [bigint, bigint, number, bigint];
-    return { amountOut: res[0], raw: res };
+    const amountOut = await quoteV3Single(this.opts.publicClient, {
+      usdc: this.opts.usdc,
+      tokenOut,
+      amountIn,
+      fee: this.fee,
+    });
+    return { amountOut, raw: amountOut };
   }
 
   async swap(args: { from: "USDC"; to: string; amountUsdc: number }): Promise<SwapResult> {

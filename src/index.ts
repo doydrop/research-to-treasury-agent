@@ -10,7 +10,7 @@ import { CHAINLINK_FEEDS } from "./feeds.js";
 import { ChainlinkPriceProvider, MockPriceProvider, type PriceProvider } from "./prices.js";
 import { generateReport } from "./research.js";
 import { MockSwapExecutor, Treasury, type SwapExecutor } from "./treasury.js";
-import { UniswapApiExecutor, DirectSwapExecutor } from "./swap.js";
+import { UniswapApiExecutor, DirectSwapExecutor, HelperSwapExecutor } from "./swap.js";
 import { buildPaywall, type PayToAddress } from "./x402.js";
 
 export interface AppDeps {
@@ -34,14 +34,34 @@ function loadDeployments(): Record<string, Address> {
   const path = join(dirname(fileURLToPath(import.meta.url)), "..", "deployments", "base-sepolia.json");
   if (!existsSync(path)) return {};
   const raw = JSON.parse(readFileSync(path, "utf8")) as Record<string, { address: string }>;
-  return Object.fromEntries(Object.entries(raw).map(([symbol, v]) => [symbol, v.address as Address]));
+  return Object.fromEntries(
+    Object.entries(raw)
+      .filter(([, v]) => typeof v?.address === "string")
+      .map(([symbol, v]) => [symbol, v.address as Address]),
+  );
 }
 
-/** Builds the sweep executor from config. Direct mode needs only a test wallet; uniswap mode also needs an API key. */
+/** Reads the SwapHelper address and seeded pool addresses from deployments/base-sepolia.json. */
+function loadHelperConfig(): { helper?: Address; pools: Record<string, Address> } {
+  const path = join(dirname(fileURLToPath(import.meta.url)), "..", "deployments", "base-sepolia.json");
+  if (!existsSync(path)) return { pools: {} };
+  const raw = JSON.parse(readFileSync(path, "utf8")) as {
+    helper?: { address?: string };
+    pools?: Record<string, { pool?: string }>;
+  };
+  const pools = Object.fromEntries(
+    Object.entries(raw.pools ?? {})
+      .filter(([, v]) => typeof v?.pool === "string")
+      .map(([symbol, v]) => [symbol, v.pool as Address]),
+  );
+  return { helper: raw.helper?.address as Address | undefined, pools };
+}
+
+/** Builds the sweep executor from config. Direct/helper modes need only a test wallet; uniswap mode also needs an API key. */
 export function buildExecutor(config: AppConfig, priceProvider: PriceProvider): SwapExecutor {
   if (config.swapExecutor === "mock") return new MockExecutorWithPrices(priceProvider);
   if (!config.testPrivateKey) {
-    throw new Error("TEST_PRIVATE_KEY is required when SWAP_EXECUTOR=uniswap or direct");
+    throw new Error("TEST_PRIVATE_KEY is required when SWAP_EXECUTOR=uniswap, direct or helper");
   }
   // MetaMask shows the key without the 0x prefix — accept both forms.
   const rawKey = config.testPrivateKey.trim();
@@ -60,6 +80,23 @@ export function buildExecutor(config: AppConfig, priceProvider: PriceProvider): 
     return new DirectSwapExecutor({
       usdc: config.usdcAddress as Address,
       tokens: loadDeployments(),
+      swapper: account.address,
+      publicClient,
+      walletClient,
+    });
+  }
+  if (config.swapExecutor === "helper") {
+    const { helper, pools } = loadHelperConfig();
+    if (!helper) {
+      throw new Error(
+        "SwapHelper not deployed — run pnpm tsx scripts/deploy-swap-helper.ts first (it records the address in deployments/base-sepolia.json)",
+      );
+    }
+    return new HelperSwapExecutor({
+      usdc: config.usdcAddress as Address,
+      tokens: loadDeployments(),
+      pools,
+      helper,
       swapper: account.address,
       publicClient,
       walletClient,
