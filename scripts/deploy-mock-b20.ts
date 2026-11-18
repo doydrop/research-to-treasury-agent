@@ -64,7 +64,11 @@ async function main(): Promise<void> {
     console.error("TEST_PRIVATE_KEY is required to deploy (a Sepolia test wallet, funded with faucet ETH).");
     process.exit(1);
   }
-  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  // MetaMask shows the key without the 0x prefix — accept both forms.
+  const normalizedKey = privateKey.trim().startsWith("0x")
+    ? (privateKey.trim() as `0x${string}`)
+    : (`0x${privateKey.trim()}` as `0x${string}`);
+  const account = privateKeyToAccount(normalizedKey);
   const publicClient = createPublicClient({ chain: baseSepolia, transport: http(RPC_URL) });
   const walletClient = createWalletClient({ account, chain: baseSepolia, transport: http(RPC_URL) });
   console.log(`Deployer: ${account.address} (Base Sepolia)`);

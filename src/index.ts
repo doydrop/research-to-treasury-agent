@@ -46,7 +46,10 @@ export function buildExecutor(config: AppConfig, priceProvider: PriceProvider): 
   if (!config.testPrivateKey) {
     throw new Error("TEST_PRIVATE_KEY is required when SWAP_EXECUTOR=uniswap");
   }
-  const account = privateKeyToAccount(config.testPrivateKey as `0x${string}`);
+  // MetaMask shows the key without the 0x prefix — accept both forms.
+  const rawKey = config.testPrivateKey.trim();
+  const key = (rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`) as `0x${string}`;
+  const account = privateKeyToAccount(key);
   const transport = http(config.rpcUrl);
   return new UniswapApiExecutor({
     apiKey: config.uniswapApiKey,
