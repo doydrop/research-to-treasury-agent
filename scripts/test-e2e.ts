@@ -10,13 +10,21 @@
  * The payer is the test wallet in .env (TEST_PRIVATE_KEY) — on testnet it
  * pays its own agent wallet, so the USDC only moves when the sweep swaps
  * it into the mock token. Nothing here touches mainnet.
+ *
+ * NOTE: x402 1.x has no wrapFetchWithPayment helper (that was 0.x), so the
+ * 402 flow is done by hand with x402/client: select the requirement, sign
+ * the payment header with the viem wallet, retry with X-PAYMENT.
  */
 import "dotenv/config";
 import { fileURLToPath } from "node:url";
 import { createWalletClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { wrapFetchWithPayment } from "x402/fetch";
+import {
+  createPaymentHeader,
+  selectPaymentRequirements,
+  type PaymentRequirements,
+} from "x402/client";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 const RPC_URL = process.env.RPC_URL ?? "https://sepolia.base.org";
@@ -40,13 +48,33 @@ async function main(): Promise<void> {
 
   const health = await fetch(`${BASE_URL}/health`);
   if (!health.ok) throw new Error(`Server not up at ${BASE_URL} (GET /health -> ${health.status})`);
-  console.log("Server up. Buying a report…");
+  console.log("Server up. Requesting a report (expecting 402)…");
 
-  const payFetch = wrapFetchWithPayment(fetch, wallet);
-  const res = await payFetch(`${BASE_URL}/research`, {
+  const body = JSON.stringify({ symbol });
+  const first = await fetch(`${BASE_URL}/research`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ symbol }),
+    body,
+  });
+  if (first.status !== 402) {
+    throw new Error(`Expected 402 from POST /research, got ${first.status}: ${(await first.text()).slice(0, 200)}`);
+  }
+  const challenge = (await first.json()) as {
+    x402Version: number;
+    accepts: PaymentRequirements[];
+  };
+  const requirement = selectPaymentRequirements(challenge.accepts, "base-sepolia");
+  console.log(`Paying ${requirement.maxAmountRequired} ${requirement.asset} on ${requirement.network}…`);
+
+  const paymentHeader = await createPaymentHeader(
+    wallet as never,
+    challenge.x402Version,
+    requirement,
+  );
+  const res = await fetch(`${BASE_URL}/research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-PAYMENT": paymentHeader },
+    body,
   });
   if (!res.ok) throw new Error(`POST /research -> ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const report = (await res.json()) as Record<string, unknown>;
