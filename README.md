@@ -63,13 +63,31 @@ get test USDC + Sepolia ETH from the faucets before deploying or swapping.
 Verified on-chain (Base Sepolia, 18 Nov 2026): Universal Router
 `0x8b844f885672f333bc0042cb669255f93a4c1e6b`, Permit2
 `0x000000000022D473030F116dDEE9F6B43aC78BA3`, faucet USDC above, WETH
-`0x4200000000000000000000000000000000000006`. **Aerodrome has no Base
-Sepolia deployment** (mainnet only) — it is not used.
+`0x4200000000000000000000000000000000000006`, V3 Factory
+`0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24`, NonfungiblePositionManager
+`0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2` (both from the official Uniswap
+docs). **Aerodrome has no Base Sepolia deployment** (mainnet only) — it is not used.
+
+## Seeding a pool (so swaps can quote)
+
+The Trading API only quotes against pools that exist. Seed one per token
+(default 10 USDC + the matching mock amount at the example price, ±10% range,
+0.3% fee):
+
+```bash
+pnpm tsx scripts/seed-pool.ts AAPLc            # defaults: --usdc 10 --fee 3000
+pnpm tsx scripts/seed-pool.ts NVDAc --usdc 5 --price 195.25
+```
+
+The pool address + position NFT id are recorded under `pools` in
+`deployments/base-sepolia.json`. Test the quote without signing anything:
+
+```bash
+pnpm tsx scripts/test-quote.ts AAPLc --amount 1   # needs UNISWAP_API_KEY
+```
 
 What is still mocked or next:
 
-- No Uniswap pool exists yet for USDC/mock-B20 on Sepolia: after deploying
-  the mocks, someone must seed a V3 pool (or the quote API finds no route).
 - The demo video + submission (X post + form) are still to do.
 
 ## Competition

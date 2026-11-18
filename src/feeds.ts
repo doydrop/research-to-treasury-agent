@@ -34,3 +34,15 @@ export const SEPOLIA_ADDRESSES = {
 
 /** Aerodrome has NO Base Sepolia deployment (confirmed via aerodrome-finance/contracts: mainnet only). Do not use Aerodrome addresses on testnet. */
 export const AERODROME_SEPOLIA_AVAILABLE = false;
+
+/**
+ * Uniswap V3 on Base Sepolia, from the official Uniswap docs
+ * (developers.uniswap.org/docs/protocols/v3/deployments/v3-base-deployments)
+ * and verified on-chain via eth_getCode, 19 Nov 2026.
+ * NOTE: Base uses different V3 addresses than other chains — do not use the
+ * canonical 0x1F98431c... factory here (it has no code on Sepolia).
+ */
+export const SEPOLIA_V3 = {
+  factory: "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24" as Address,
+  positionManager: "0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2" as Address,
+} as const;
