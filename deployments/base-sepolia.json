@@ -1,0 +1,17 @@
+{
+  "AAPLc": {
+    "address": "0x3a0ad6d6cabf5ea59b49b082b9b8b9e3e995f764",
+    "txHash": "0x7aaa829ebb542cfa6d9ecb251115e3a946b25bdb1ecbe3b196c8a718576c697a",
+    "deployedAt": "2026-11-18T16:43:30.646Z"
+  },
+  "NVDAc": {
+    "address": "0xa7907824c35d20e5fac679f2174b98f85a3c68d3",
+    "txHash": "0x79b998263d63b8d5f46831be206d73cf208b90b4038740cd4518d1fa463a4455",
+    "deployedAt": "2026-11-18T16:43:32.114Z"
+  },
+  "TSLAc": {
+    "address": "0x3fd65834dbf11aee8999652ac6c06404bae6092a",
+    "txHash": "0xc059307545ccf08f78db1910593e93ec9d9aad52e009f14e0c313a4cd794b780",
+    "deployedAt": "2026-11-18T16:43:33.554Z"
+  }
+}
