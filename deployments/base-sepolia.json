@@ -24,6 +24,26 @@
       "priceUsd": 280.5,
       "txHash": "0xaa8da04c8a61cd2a891392f63d4f24ed73d0a24ea7b3e333bb39274beb242387",
       "seededAt": "2026-11-18T17:05:51.179Z"
+    },
+    "NVDAc": {
+      "pool": "0x917d3DdB1Ff0102B2A659E0bF7b951043cAAd7e4",
+      "fee": 3000,
+      "tokenId": "85457",
+      "tickLower": 222600,
+      "tickUpper": 224580,
+      "priceUsd": 195.25,
+      "txHash": "0x35bffdf77772ebbc1b56d945262681e24febbd87aa24aa67613aa4c88fc635c0",
+      "seededAt": "2026-11-19T00:27:13.036Z"
+    },
+    "TSLAc": {
+      "pool": "0xe7a3BD60fC5d4E8551fC2BE8999a94c7a3C77a79",
+      "fee": 3000,
+      "tokenId": "85458",
+      "tickLower": 214500,
+      "tickUpper": 216420,
+      "priceUsd": 440,
+      "txHash": "0x3df95a29d0623261b0a8e11d4463bd8ea07c9d025f56ec5babfe50a596c757bb",
+      "seededAt": "2026-11-19T00:27:21.951Z"
     }
   },
   "helper": {
